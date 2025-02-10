@@ -87,7 +87,9 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: task terraform -- plan -out=tfplan -no-color | tee plan.md
-        env: 
+        env:
+          TF_VAR_BACKBLAZE_APPLICATION_KEY: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_BACKBLAZE_APPLICATION_KEY_ID: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
           GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
 
       - name: Upload Plan
@@ -197,6 +199,10 @@ jobs:
 
       - name: Terraform Apply
         run: task terraform -- apply -auto-approve -no-color tfplan | tee apply.md
+        env:
+          TF_VAR_BACKBLAZE_APPLICATION_KEY: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_BACKBLAZE_APPLICATION_KEY_ID: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
 
       - name: Upload Files
         uses: actions/upload-artifact@v4.6.0
