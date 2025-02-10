@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+set: [pipefail]
+shopt: [globstar]
+
+env:
+  TF_BACKEND_HTTP_ENCRYPTION_PROVIDER: sops
+  TF_BACKEND_HTTP_SOPS_PGP_FP: 60A6849DA8C872ED5E3803E3CAE4C9DA0D9FDDC0
+  GIT_USERNAME: "mr-borboto [bot]"
+
+tasks:
+  default:
+    silent: true
+    cmd: task -l
+
+  terraform:
+    desc: Start the backend HTTP server and run terraform commands
+    cmd: |
+      terraform-backend-git git \
+        --repository https://github.com/mirceanton/backblaze-terraform \
+        --ref main \
+        --state tfstate.json \
+        terraform {{.CLI_ARGS}}
