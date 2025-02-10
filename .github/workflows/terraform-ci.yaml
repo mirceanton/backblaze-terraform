@@ -88,8 +88,8 @@ jobs:
         id: plan
         run: task terraform -- plan -out=tfplan -no-color | tee plan.md
         env:
-          TF_VAR_BACKBLAZE_APPLICATION_KEY: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
-          TF_VAR_BACKBLAZE_APPLICATION_KEY_ID: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
+          TF_VAR_backblaze_application_key: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_backblaze_application_key_id: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
           GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
 
       - name: Upload Plan
@@ -175,6 +175,13 @@ jobs:
     needs: [plan]
     if: github.event_name == 'push'
     steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -200,8 +207,8 @@ jobs:
       - name: Terraform Apply
         run: task terraform -- apply -auto-approve -no-color tfplan | tee apply.md
         env:
-          TF_VAR_BACKBLAZE_APPLICATION_KEY: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
-          TF_VAR_BACKBLAZE_APPLICATION_KEY_ID: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
+          TF_VAR_backblaze_application_key: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_backblaze_application_key_id: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
           GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
 
       - name: Upload Files
