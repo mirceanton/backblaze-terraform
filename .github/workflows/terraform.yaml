@@ -1,0 +1,245 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Terraform CI/CD
+
+on:
+  # Manual trigger
+  workflow_dispatch: {}
+
+  # Run on any PR to the default branch -> comment plan
+  pull_request:
+    branches: [main, master]
+    paths: ["**.tf"]
+
+  # Run on push -> apply
+  push:
+    branches: [main, master]
+    paths: ["**.tf"]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Tools
+        uses: jdx/mise-action@v2
+
+      - name: Check formatting
+        run: terraform fmt -recursive -check
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import GPG Key
+        run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+
+      - name: Setup Tools
+        uses: jdx/mise-action@v2
+
+      - name: Terraform Init
+        run: task terraform -- init -upgrade
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Configuration
+        run: task terraform -- validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  plan:
+    runs-on: ubuntu-latest
+    needs: [fmt, validate]
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import GPG Key
+        run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+
+      - name: Setup Tools
+        uses: jdx/mise-action@v2
+
+      - name: Terraform Init
+        run: task terraform -- init -upgrade
+        env: 
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
+
+      - name: Terraform Plan
+        id: plan
+        run: task terraform -- plan -out=tfplan -no-color | tee plan.md
+        env:
+          TF_VAR_backblaze_application_key: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_backblaze_application_key_id: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: plan
+          path: "tfplan"
+          retention-days: 1
+          compression-level: 1
+
+      - name: Summarize Plan
+        id: summary
+        run: tf-summarize -md tfplan | tee summary.md
+
+      - name: Upload Summaries
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: files
+          path: "*.md"
+          retention-days: 1
+          compression-level: 1
+
+  comment-on-pr:
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3.1.0
+        id: fc
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: Terraform Plan Summary
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: files
+          path: "./"
+          retention-days: 1
+          compression-level: 1
+
+      - name: Compose Message
+        run: |
+          cat <<EOF > comment.md
+          # Terraform Plan Summary
+
+          Mr. Borboto ran a \`terraform plan\` on the code in this PR and this is the summary of those results:
+
+          $(cat summary.md)
+
+          ## Click Below for the Full Plan Output
+
+          <details>
+          <summary>Full Plan Output</summary>
+
+          \`\`\`txt
+          $(cat plan.md)
+          \`\`\`
+
+          </details>
+          EOF
+
+      - name: Create or Update Comment
+        uses: peter-evans/create-or-update-comment@v4.0.0
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body-path: comment.md
+
+  apply:
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: github.event_name == 'push'
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import GPG Key
+        run: echo -n "$GPG_SIGNING_KEY" | base64 --decode | gpg --import
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+
+      - name: Setup Tools
+        uses: jdx/mise-action@v2
+
+      - name: Terraform Init
+        run: task terraform -- init -upgrade
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: plan
+          path: "./"
+          retention-days: 1
+          compression-level: 1
+
+      - name: Terraform Apply
+        run: task terraform -- apply -auto-approve -no-color tfplan | tee apply.md
+        env:
+          TF_VAR_backblaze_application_key: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY }}
+          TF_VAR_backblaze_application_key_id: ${{ secrets.TF_VAR_BACKBLAZE_APPLICATION_KEY_ID }}
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
+
+      - name: Upload Files
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: apply
+          path: apply.md
+          retention-days: 1
+          compression-level: 1
+
+  comment-on-commit:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    needs: [apply]
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+      - name: Download File
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: apply
+          path: "./"
+          retention-days: 1
+          compression-level: 1
+
+      - name: Comment on Commit
+        uses: peter-evans/commit-comment@v3.0.0
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          body-path: "./apply.md"
