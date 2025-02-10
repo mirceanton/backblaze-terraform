@@ -31,9 +31,7 @@ jobs:
         uses: jdx/mise-action@v2
 
       - name: Check formatting
-        run: task terraform -- fmt -recursive -check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: terraform fmt -recursive -check
 
   validate:
     runs-on: ubuntu-latest
