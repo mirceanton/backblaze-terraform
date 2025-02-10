@@ -7,3 +7,23 @@ resource "b2_bucket" "mirceanton-obsidian-sync" {
     file_name_prefix              = ""
   }
 }
+
+resource "b2_application_key" "mirceanton-obsidian-sync-rw" {
+  key_name  = "mirceanton-obsidian-sync-rw"
+  bucket_id = b2_bucket.mirceanton-obsidian-sync.bucket_id
+  capabilities = [
+    "deleteFiles",
+    "listBuckets",
+    "listFiles",
+    "readBucketEncryption",
+    "readBucketNotifications",
+    "readBucketReplications",
+    "readBuckets",
+    "readFiles",
+    "shareFiles",
+    "writeBucketEncryption",
+    "writeBucketNotifications",
+    "writeBucketReplications",
+    "writeFiles",
+  ]
+}
