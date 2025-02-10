@@ -1,7 +1,3 @@
-import {
-  to = b2_bucket.mirceanton-obsidian-sync
-  id = "53fc2d544a4ff73594320f1e"
-}
 resource "b2_bucket" "mirceanton-obsidian-sync" {
   bucket_name = "mirceanton-obsidian-sync"
   bucket_type = "allPrivate"
