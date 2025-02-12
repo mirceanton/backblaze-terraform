@@ -8,8 +8,9 @@ on:
     inputs:
       dry-run:
         description: Dry Run
-        default: "false"
+        default: false
         required: false
+        type: boolean
       log-level:
         description: Log Level
         default: debug
