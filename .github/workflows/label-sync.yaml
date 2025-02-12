@@ -35,4 +35,4 @@ jobs:
     secrets: inherit
     with:
       dry-run: ${{ inputs.dry-run || github.event_name == 'pull_request' }}
-      config-file: .github/labels.yaml
+      config-file: .github/configs/labels.yaml
