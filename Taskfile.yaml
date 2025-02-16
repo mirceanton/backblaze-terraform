@@ -17,6 +17,7 @@ tasks:
 
   terraform:
     desc: Start the backend HTTP server and run terraform commands
+    dir: terraform/
     cmd: |
       terraform-backend-git git \
         --repository https://github.com/mirceanton/backblaze-terraform \
